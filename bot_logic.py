@@ -33,7 +33,7 @@ def _calculate_average_order_statistics(cart):
         'saltiness': 0.0,
         'sweetness': 0.0,
         'count': len(cart),
-        'categories': dict()  # Добавляем подсчёт категорий
+        'categories': dict()
     }
 
     for item in cart:
@@ -45,7 +45,7 @@ def _calculate_average_order_statistics(cart):
         # Подсчёт категорий
         category = item.get('category', '')
         if category:
-            stats['categories'][category] += 1
+            stats['categories'][category] = stats['categories'].get(category, 0) + 1
 
     stats['spiciness'] /= stats['count']
     stats['vegetarian'] /= stats['count']
@@ -177,9 +177,9 @@ class LunchMindBot:
 
     def show_menu(self):
         """Вывод текста меню"""
-        menu_text = "🍽️ *Наше меню*:\n\n"
+        menu_text = "🍽️ <u>Наше меню</u>:\n\n"
         for item, details in MENU.items():
-            menu_text += f"*{details['name']}*:\n"
+            menu_text += f"<b>{details['name']}</b>:\n"
             menu_text += f"{details['description']}\n"
             menu_text += f"Цена: {details['price']} руб.\n\n"
         menu_text += "Если хотите что-то заказать, то напишите об этом"
@@ -196,18 +196,18 @@ class LunchMindBot:
         total = 0
 
         # Создание красивого ответа
-        cart_text = "🛒 *Ваша корзина*:\n\n"
+        cart_text = "🛒 <b>Ваша корзина</b>:\n\n"
         for item in cart:
             cart_text += f"- {item['name']} - {item['price']} руб.\n"
             total += item["price"]
-        cart_text += f"\n*Итого: {total} руб.*"
+        cart_text += f"\n<b>Итого: {total} руб.</b>"
 
         return cart_text
 
     def clear_cart(self, user_id):
         """Очистка корзины"""
         self.carts[user_id] = []
-        return "❌ *Корзина очищена*"
+        return "❌ <b>Корзина очищена</b>"
 
     def complete_order(self, user_id):
         """Оформление заказа"""
@@ -219,29 +219,38 @@ class LunchMindBot:
         total = 0
 
         # Создание красивового ответа
-        order_text = "✔️ *Ваш заказ оформлен!*\n\n"
+        order_text = "✔️ <b>Ваш заказ оформлен!</b>\n\n"
         for item in cart:
             order_text += f"- {item['name']} - {item['price']} руб.\n"
             total += item["price"]
-        order_text += f"\n*Итого: {total} руб.*\n\n"
+        order_text += f"\n<b>Итого: {total} руб.</b>\n\n"
         order_text += "Спасибо за заказ! Ожидайте подтверждения."
 
         # Очищаем корзину так как уже сделали заказ
         self.clear_cart(user_id)
 
-        if self.context[user_id]["sentiment"] > 0.4 and self.context[user_id]["recommendation_counter"] > 5:
+        # Создание записи о пользователе, если до этого не было
+        if user_id not in self.context:
+            self.context[user_id] = {
+                "sentiment": 1,
+                "recommendation_counter": 5,
+                "coupon_counter": 0,
+                "apologize_counter": 0
+            }
+
+        self.context[user_id]["recommendation_counter"] += 1
+        if self.context[user_id]["sentiment"] > 0.2 and self.context[user_id]["recommendation_counter"] > 5:
             recommendation = _find_recommendation(cart)
 
             if recommendation is not None:
                 order_text += (
                     "\n\nПроанализировав ваш заказ, мы подготовили персональную рекомендацию и думаем это может вам понравиться. "
                     "Вы можете заказать это прямо сейчас или при следующем визите!\n\n")
-                order_text += "*Рекомендуем попробовать*:\n"
+                order_text += "<b>Рекомендуем попробовать</b>:\n"
                 order_text += f"{recommendation['name']} - {recommendation['price']} руб.\n"
                 order_text += recommendation['description']
 
                 self.context[user_id]["recommendation_counter"] = 0
-
         if self.context[user_id]["sentiment"] >= 0:
             self.context[user_id]["coupon_counter"] += 1
 
@@ -253,9 +262,8 @@ class LunchMindBot:
         # Создание записи о пользователе, если до этого не было
         if user_id not in self.context:
             self.context[user_id] = {
-                "last_intent": None,
-                "sentiment": 0,
-                "recommendation_counter": 0,
+                "sentiment": 1,
+                "recommendation_counter": 5,
                 "coupon_counter": 0,
                 "apologize_counter": 0
             }
@@ -271,39 +279,41 @@ class LunchMindBot:
         for example in INTENT_DATASET["intents"][potential_intent]["examples"]:
             prepared_example = lemmatize_correct_clean_text(example)
             distance = nltk.edit_distance(prepared_text, prepared_example)
-            if prepared_example and distance / len(prepared_example) <= 0.3:
+            if prepared_example and distance / len(prepared_example) <= 0.5:
                 intent = potential_intent
                 break
 
         # Подсчет нового настроения
-        new_user_sentiment = (self.context[user_id]["sentiment"] + sentiment) / 2
-        if new_user_sentiment > 1:
-            new_user_sentiment = 1
-        elif new_user_sentiment < -1:
-            new_user_sentiment = -1
+        if intent is not None:
+            new_user_sentiment = (self.context[user_id]["sentiment"] + sentiment) / 2
+            if new_user_sentiment > 1:
+                new_user_sentiment = 1
+            elif new_user_sentiment < -1:
+                new_user_sentiment = -1
+        else:
+            new_user_sentiment = self.context[user_id]["sentiment"]
 
         # Инкремент счетчика для рекомендации
-        new_user_recommendation_counter = self.context[user_id]["recommendation_counter"] + 1
+        old_user_recommendation_counter = self.context[user_id]["recommendation_counter"]
 
         # Счетчики для купона и извинений оставляем без изменения
         old_user_coupon_counter = self.context[user_id]["coupon_counter"]
         old_user_apologize_counter = self.context[user_id]["apologize_counter"]
 
         self.context[user_id] = {
-            "last_intent": None,
             "sentiment": new_user_sentiment,
-            "recommendation_counter": new_user_recommendation_counter,
+            "recommendation_counter": old_user_recommendation_counter,
             "coupon_counter": old_user_coupon_counter,
             "apologize_counter": old_user_apologize_counter
         }
 
         if intent is not None:
-            self.context[user_id]["last_intent"] = intent
-
             if intent == "greeting":
                 return self._handle_greeting()
             elif intent == "goodbye":
                 return self._handle_goodbye()
+            elif intent == "thanks":
+                return self._handle_thanks()
             elif intent == "menu_request":
                 return self._handle_menu_request()
             elif intent == "cart_request":
@@ -332,6 +342,11 @@ class LunchMindBot:
     def _handle_goodbye(self):
         """Обработка намерения прощания"""
         responses = INTENT_DATASET["intents"]["goodbye"]["responses"]
+        return random.choice(responses)
+
+    def _handle_thanks(self):
+        """Обработка намерения прощания"""
+        responses = INTENT_DATASET["intents"]["thanks"]["responses"]
         return random.choice(responses)
 
     def _handle_menu_request(self):
@@ -433,22 +448,19 @@ class LunchMindBot:
         """Генерация ответа на основе датасета диалогов"""
         prepared_text = lemmatize_correct_clean_text(text)
         words = set(prepared_text.split(" "))
-        mini_dataset = []
-        for word in words:
-            if word in DIALOGUES:
-                mini_dataset += DIALOGUES[word]
-        mini_dataset = set(mini_dataset)
 
         answers = []
-        for question, answer in mini_dataset:
-            prepared_question = lemmatize_correct_clean_text(question)
+        for word in words:
+            if word in DIALOGUES:
+                for question, answer in DIALOGUES[word]:
+                    prepared_question = lemmatize_correct_clean_text(question)
 
-            if abs(len(prepared_text) - len(prepared_question)) / len(prepared_question) < 0.2:
-                distance = nltk.edit_distance(prepared_text, prepared_question)
-                distance_weighted = distance / len(prepared_question)
+                    if abs(len(prepared_text) - len(prepared_question)) / len(prepared_question) < 0.2:
+                        distance = nltk.edit_distance(prepared_text, prepared_question)
+                        distance_weighted = distance / len(prepared_question)
 
-                if distance_weighted < 0.2:
-                    answers.append([distance_weighted, question, answer])
+                        if distance_weighted < 0.2:
+                            answers.append([distance_weighted, question, answer])
 
         if answers:
             return min(answers, key=lambda x: x[0])[2]
@@ -469,7 +481,7 @@ class LunchMindBot:
         sorry_message = (f"Похоже, я вас немного расстроил, и мне искренне жаль, что не могу помочь...\n\n"
                          f"Пожалуйста, свяжитесь с нашим менеджером: restaurant@restaurant.com\n"
                          f"Туда же можно отправить отзыв о моей работе — я учусь на ошибках!\n\n"
-                         f"А в качестве извинений у меня для вас есть купон \"SORRY10\" на скидку 10% "
+                         f"А в качестве извинений у меня для вас есть купон <code>SORRY10</code> на скидку 10% "
                          f"в любом нашем ресторане. Покажите его официанту, и мы загладим вину 😊")
         if self.context[user_id]["apologize_counter"] < 3:
             self.context[user_id]["apologize_counter"] += 1
@@ -488,6 +500,6 @@ class LunchMindBot:
             coupon_code = ''.join(random.choice(chars) for _ in range(8))
 
             return (f"У нас для вас подарок! Мы подготовили персональный купон на скидку в нашем ресторане. \n\n"
-                    f"```{coupon_code}```\n\n"
+                    f"<code>{coupon_code}</code>\n\n"
                     f"Купон начнет действовать уже со следующего заказа, просто предъявите его официанту или введите при заказе!")
         return ""

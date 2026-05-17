@@ -60,7 +60,6 @@ def extract_entities(text):
         return []
 
     entities = []
-    seen = set()
 
     doc = Doc(text)
     doc.segment(segmenter)
@@ -73,14 +72,11 @@ def extract_entities(text):
         entity_text = span.text
         entity_normal = span.normal or entity_text
 
-        key = (entity_type, entity_normal)
-        if key not in seen:
-            seen.add(key)
-            entities.append({
-                'type': entity_type,
-                'text': entity_text,
-                'normal': entity_normal
-            })
+        entities.append({
+            'type': entity_type,
+            'text': entity_text,
+            'normal': entity_normal
+        })
 
     # Загрузка меню
     try:
@@ -100,18 +96,15 @@ def extract_entities(text):
     if menu_parser is not None:
         for match in menu_parser.findall(text):
             dish_name = match.fact.name
-            key = ('MENU_ITEM', dish_name.lower())
-            if key not in seen:
-                seen.add(key)
-                entities.append({
-                    'type': 'MENU_ITEM',
-                    'text': dish_name,
-                    'normal': dish_name.lower()
-                })
+            entities.append({
+                'type': 'MENU_ITEM',
+                'text': dish_name,
+                'normal': dish_name.lower()
+            })
 
     return entities
 
-def   analyze_sentiment(text, emo_dict):
+def analyze_sentiment(text, emo_dict):
     """Анализ тональности текста"""
     lemmatized = lemmatize_text(text)
     words = lemmatized.split()

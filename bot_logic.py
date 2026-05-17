@@ -8,6 +8,13 @@ from intent_classifier import IntentClassifier, train_and_save_model
 
 from config import MODEL_FILE_PATH, INTENT_DATASET_FILE_PATH, MENU_FILE_PATH, DIALOGUES_FILE_PATH, EMO_DICT_FILE_PATH
 
+# Включаем логирование для отладки
+import logging
+
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                    level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Загрузка данных
 EMO_DICT = get_emo_dict(EMO_DICT_FILE_PATH)
 DIALOGUES = get_dialogues(DIALOGUES_FILE_PATH)
@@ -18,7 +25,7 @@ INTENT_DATASET = get_intent_dataset(INTENT_DATASET_FILE_PATH, MENU)
 try:
     INTENT_CLASSIFIER = IntentClassifier.load(MODEL_FILE_PATH)
 except FileNotFoundError:
-    print("Модель не найдена, обучаю модель заново")
+    logger.info("Модель не найдена, обучаю модель заново")
     INTENT_CLASSIFIER = train_and_save_model(INTENT_DATASET_FILE_PATH, MODEL_FILE_PATH)
 
 
@@ -284,7 +291,7 @@ class LunchMindBot:
                 break
 
         # Подсчет нового настроения
-        if intent is not None:
+        if intent is None:
             new_user_sentiment = (self.context[user_id]["sentiment"] + sentiment) / 2
             if new_user_sentiment > 1:
                 new_user_sentiment = 1

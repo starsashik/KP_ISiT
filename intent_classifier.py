@@ -118,7 +118,7 @@ def train_and_save_model(dataset_file_path, model_file_path, test_size=0.2,
         random_state=42
     )
 
-    logger.info(f"\nРазделение данных:")
+    logger.info(f"Разделение данных:")
     logger.info(f"  Обучающая выборка: {len(X_train)}")
     logger.info(f"  Тестовая выборка: {len(X_test)}")
 

@@ -1,5 +1,5 @@
 # Токен для телеграмм бота
-TELEGRAM_TOKEN = '8657263537:AAEcW3YAZAXTwPLfhXkQk9QsMnkCYnIzAnA'
+TELEGRAM_TOKEN = ''
 
 # ID admin для телеграмм бота
 ADMIN_ID_USER = "1033989975"
